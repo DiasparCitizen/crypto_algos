@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include "math.h"
 
 uint8_t precomp_sbox[][16] = {
 	{0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76},
@@ -131,6 +132,12 @@ void shiftRows(uint8_t *block){
 }
 
 uint8_t gmul(uint8_t a, uint8_t b) {
+
+
+		uint8_t b_copy = b;
+		uint8_t a_copy = a;
+
+
         uint8_t p = 0;
         uint8_t counter;
         uint8_t hi_bit_set;
@@ -140,11 +147,15 @@ uint8_t gmul(uint8_t a, uint8_t b) {
                 hi_bit_set = (a & 0x80);
                 a <<= 1;
                 if (hi_bit_set)
-                        a ^= 0x1b; /* x^8 + x^4 + x^3 + x + 1 */
+                        a ^= 0x1b; // x^8 + x^4 + x^3 + x + 1
                 b >>= 1;
         }
+
         return p;
+
 }
+
+
 
 void mixCol(uint8_t *block){
 
@@ -290,26 +301,6 @@ void transform_key(uint8_t *key, uint8_t *next_key, uint8_t round_num){
 
 void add(uint8_t *block, uint8_t *block2){
 
-	/*block[0] ^= block2[0];
-	block[1] ^= block2[1];
-	block[2] ^= block2[2];
-	block[3] ^= block2[3];
-
-	block[4] ^= block2[4];
-	block[5] ^= block2[5];
-	block[6] ^= block2[6];
-	block[7] ^= block2[7];
-
-	block[8] ^= block2[8];
-	block[9] ^= block2[9];
-	block[10] ^= block2[10];
-	block[11] ^= block2[11];
-
-	block[12] ^= block2[12];
-	block[13] ^= block2[13];
-	block[14] ^= block2[14];
-	block[15] ^= block2[15];*/
-
 	((uint32_t*)block)[0] ^= ((uint32_t*)block2)[0];
 	((uint32_t*)block)[1] ^= ((uint32_t*)block2)[1];
 	((uint32_t*)block)[2] ^= ((uint32_t*)block2)[2];
@@ -401,17 +392,54 @@ void increase_counter(uint8_t *counter){
 
 }
 
-void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_BYTES], uint8_t iv[12]){
+void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_BYTES], uint8_t iv[12], uint8_t *aad){
 
-	uint8_t input[BLOCK_SIZE_BYTES];
+
+	// Declare vars
+	int curr_index;
+	uint8_t encryption_input[BLOCK_SIZE_BYTES];
 	uint8_t counter[BLOCK_SIZE_BYTES] = {0x0};
+	uint8_t H[BLOCK_SIZE_BYTES] = {0x0};
+	uint8_t g_sub_i[BLOCK_SIZE_BYTES] = {0x0};
+	uint8_t aux[BLOCK_SIZE_BYTES] = {0x0};
+	uint8_t counter0_copy[BLOCK_SIZE_BYTES] = {0x0};
 
+
+
+	// Initialize the counter
 	memcpy(counter, iv, 12);
+	increase_counter(counter); // Y0 == IV || 0x00000001
+	printf("\ncounter 0:\n");
+	print_array_pretty(counter, 16);
 
-	// Y0 == IV || 0x00000001
-	increase_counter(counter);
+	// Encrypt counter 0 for later
+	memcpy(counter0_copy, counter, 16);
+	encrypt_block_AES(counter0_copy, key);
+
+	// Initialize H
+	// The initial value of H is the result
+	// of encrypting the all-zero input with the block
+	// cipher
+	encrypt_block_AES(H, key);
+	printf("\nH:\n");
+	print_array_pretty(H, 16);
+
+	// g0 is the result of the multiplication in GF(2^128)
+	// of H and AAD
+	galois_128_mult_lle(H, aad, g_sub_i);
+
+	// Initialize len(A)||len(C)
+	uint8_t lenA_lenC[BLOCK_SIZE_BYTES] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00};
+
+
+
+
+
+	// BEGIN ENCRYPTION
 
 	for (int b_index = 0; b_index < data_size; b_index += BLOCK_SIZE_BYTES){
+
+		curr_index = b_index;
 
 		increase_counter(counter);
 
@@ -420,26 +448,41 @@ void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_B
 	print_array(counter, BLOCK_SIZE_BYTES);
 #endif
 
-		// input <- Yi
-	    memcpy(input, counter, BLOCK_SIZE_BYTES);
+	    memcpy(encryption_input, counter, BLOCK_SIZE_BYTES);
 
-	    // E(input, K)
-		encrypt_block_AES(input, key);
+	    // E(encryption_input, K)
+		encrypt_block_AES(encryption_input, key);
 
 #ifdef DEBUG_2
 	printf("After AES: ");
-	print_array(input, 16);
+	print_array(encryption_input, BLOCK_SIZE_BYTES);
 #endif
 
-		// Add
-		add(&(data[b_index]), input);
+		// Yi = Xi + E(encryption_input, K)
+		add(&(data[b_index]), encryption_input);
 
 #ifdef DEBUG_2
 	printf("Add: ");
 	print_array(&(data[b_index]), BLOCK_SIZE_BYTES);
 #endif
 
+		// g_sub_i = Yi + g_sub_i
+		add(g_sub_i, &(data[b_index]));
+		galois_128_mult_lle(H, g_sub_i, aux);
+		memcpy(g_sub_i, aux, 16);
+
 	}
+
+	// g_sub_i Xor lenA_lenC
+	add(g_sub_i, lenA_lenC);
+
+	// Multiply again by H
+	galois_128_mult_lle(H, g_sub_i, aux);
+
+	// Calculate hash
+	add(aux, counter0_copy);
+	printf("hash: ");
+	print_array(aux, BLOCK_SIZE_BYTES);
 
 }
 
@@ -455,13 +498,35 @@ int main(void) {
 			0x1c, 0x3c, 0x0c, 0x95, 0x95, 0x68, 0x09, 0x53, 0x2f, 0xcf, 0x0e, 0x24, 0x49, 0xa6, 0xb5, 0x25,
 			0xb1, 0x6a, 0xed, 0xf5, 0xaa, 0x0d, 0xe6, 0x57, 0xba, 0x63, 0x7b, 0x39, 0x1a, 0xaf, 0xd2, 0x55};
 	uint8_t iv[12] = {0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
+	//feed face dead beef feed face dead beef abad dad2
+	uint8_t aad[20] = {0xfe, 0xed, 0xfa, 0xce, 0xde, 0xad, 0xbe, 0xef, 0xfe, 0xed, 0xfa, 0xce, 0xde, 0xad, 0xbe, 0xef, 0xab, 0xad, 0xda, 0xd2};
 
-	encrypt_data_AES_GCM(plaintext, 64, key, iv);
+	encrypt_data_AES_GCM(plaintext, 64, key, iv, aad);
 
 	printf("\nCipher text:\n");
 	print_array_pretty(plaintext, 64);
 
 	puts("END!");
+
+
+
+	/*uint8_t region_x[16];
+	uint8_t region_y[16];
+	uint8_t region_z[16];
+	memset(region_x, 0x0, 16);
+	memset(region_y, 0x0, 16);
+	memset(region_z, 0x0, 16);
+
+	region_x[0] = 0b10100000;
+	region_y[0] = 0b11100000;
+
+	print_region(region_x);
+	print_region(region_y);
+	print_region(region_z);
+
+	printf("GALOIS!\n");
+	galois_128_mult_lle(region_x, region_y, region_z);
+	print_region(region_z);*/
 
 	return EXIT_SUCCESS;
 
