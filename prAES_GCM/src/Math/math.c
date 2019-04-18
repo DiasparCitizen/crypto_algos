@@ -205,12 +205,41 @@ uint32_t _bswap32(uint32_t a){
 
 }
 
-void add(uint8_t *block, uint8_t *block2){
+void xor(uint8_t *block, uint8_t *block2){
 
 	((uint32_t*)block)[0] ^= ((uint32_t*)block2)[0];
 	((uint32_t*)block)[1] ^= ((uint32_t*)block2)[1];
 	((uint32_t*)block)[2] ^= ((uint32_t*)block2)[2];
 	((uint32_t*)block)[3] ^= ((uint32_t*)block2)[3];
+
+}
+
+void flip_bytes(uint8_t *bytes, uint8_t len){
+
+	for (uint8_t i = 0; i < len; i++){
+		bytes[i] = flip_byte(bytes[i]);
+	}
+
+}
+
+uint8_t flip_byte(uint8_t b){
+
+	/*uint8_t flipped_byte = 0;
+
+	flipped_byte |= ((*b) & 0x1) << 7;
+	flipped_byte |= ((*b) & 0x2) << 5;
+	flipped_byte |= ((*b) & 0x4) << 3;
+	flipped_byte |= ((*b) & 0x8) << 1;
+
+	flipped_byte |= ((*b) & 0x10) >> 1;
+	flipped_byte |= ((*b) & 0x20) >> 3;
+	flipped_byte |= ((*b) & 0x40) >> 5;
+	flipped_byte |= ((*b) & 0x80) >> 7;*/
+
+	b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+	b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+	b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+	return b;
 
 }
 

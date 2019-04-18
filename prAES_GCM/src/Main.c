@@ -17,8 +17,9 @@
 int main(void) {
 
 	//http://testprotect.com/appendix/AEScalc
-	test_AES_GCM_1();
-
+	//test_DES_block_cipher_1();
+	//test_DES_f_function();
+	test_3DES_3TDEA();
 
 
 	/*uint8_t region_x[16];

@@ -9,5 +9,6 @@
 
 void print_array(uint8_t *text, int size);
 void print_array_pretty(uint8_t *text, int size);
+void print_array_pretty_bin(uint8_t *text, int size);
 
 #endif /* HELPER_HELPER_H_ */

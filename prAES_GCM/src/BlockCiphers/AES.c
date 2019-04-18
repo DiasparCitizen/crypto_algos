@@ -96,10 +96,6 @@ void shiftRows(uint8_t *block){
 
 uint8_t gmul(uint8_t a, uint8_t b) {
 
-	uint8_t b_copy = b;
-	uint8_t a_copy = a;
-
-
 	uint8_t p = 0;
 	uint8_t counter;
 	uint8_t hi_bit_set;
@@ -266,66 +262,66 @@ void encrypt_block_AES(uint8_t *block, uint8_t *key){
 
 	memcpy(aux_key_2, key, BLOCK_SIZE_BYTES);
 
-	add(block, key);
+	xor(block, key);
 
 	// Round 1
 	doRound(block);
 
 	transform_key(aux_key_2, aux_key, 1);
-	add(block, aux_key);
+	xor(block, aux_key);
 
 	// Round 2
 	doRound(block);
 
 	transform_key(aux_key, aux_key_2, 2);
-	add(block, aux_key_2);
+	xor(block, aux_key_2);
 
 	// Round 3
 	doRound(block);
 
 	transform_key(aux_key_2, aux_key, 3);
-	add(block, aux_key);
+	xor(block, aux_key);
 
 	// Round 4
 	doRound(block);
 
 	transform_key(aux_key, aux_key_2, 4);
-	add(block, aux_key_2);
+	xor(block, aux_key_2);
 
 	// Round 5
 	doRound(block);
 
 	transform_key(aux_key_2, aux_key, 5);
-	add(block, aux_key);
+	xor(block, aux_key);
 
 	// Round 6
 	doRound(block);
 
 	transform_key(aux_key, aux_key_2, 6);
-	add(block, aux_key_2);
+	xor(block, aux_key_2);
 
 	// Round 7
 	doRound(block);
 
 	transform_key(aux_key_2, aux_key, 7);
-	add(block, aux_key);
+	xor(block, aux_key);
 
 	// Round 8
 	doRound(block);
 
 	transform_key(aux_key, aux_key_2, 8);
-	add(block, aux_key_2);
+	xor(block, aux_key_2);
 
 	// Round 9
 	doRound(block);
 
 	transform_key(aux_key_2, aux_key, 9);
-	add(block, aux_key);
+	xor(block, aux_key);
 
 	// Round 10
 	doLastRound(block);
 
 	transform_key(aux_key, aux_key_2, 10);
-	add(block, aux_key_2);
+	xor(block, aux_key_2);
 
 }

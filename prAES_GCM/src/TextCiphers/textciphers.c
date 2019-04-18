@@ -1,9 +1,3 @@
-/*
- * textciphers.c
- *
- *  Created on: 27 feb. 2019
- *      Author: Ich
- */
 
 #include "textciphers.h"
 
@@ -14,9 +8,9 @@ void increase_counter(uint8_t *counter){
 	uint32_t copy = _bswap32( ((uint32_t*)counter)[3] ) + 1;
 	((uint32_t*)counter)[3] = _bswap32( copy );
 
-#ifdef DEBUG
-	print_array(counter, 16);
-#endif
+//#ifdef DEBUG
+	print_array_pretty(counter, 16);
+//#endif
 
 }
 
@@ -87,13 +81,13 @@ void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_B
 		//print_array(encryption_input, BLOCK_SIZE_BYTES);
 
 		// Yi = Xi + E(encryption_input, K)
-		add(&(data[b_index]), encryption_input);
+		xor(&(data[b_index]), encryption_input);
 
 		//printf("Add: ");
 		//print_array(&(data[b_index]), BLOCK_SIZE_BYTES);
 
 		// g_sub_i = Yi + g_sub_i
-		add(g_sub_i, &(data[b_index]));
+		xor(g_sub_i, &(data[b_index]));
 		galois_128_mult_lle(g_sub_i, H, aux);
 		memcpy(g_sub_i, aux, 16);
 		printf("g sub %d:\n", ((b_index/BLOCK_SIZE_BYTES)+1));
@@ -102,13 +96,13 @@ void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_B
 	}
 
 	// g_sub_i Xor lenA_lenC
-	add(g_sub_i, lenA_lenC);
+	xor(g_sub_i, lenA_lenC);
 
 	// Multiply again by H
 	galois_128_mult_lle(H, g_sub_i, aux);
 
 	// Calculate hash
-	add(aux, counter0_copy);
+	xor(aux, counter0_copy);
 	printf("hash: ");
 	print_array(aux, BLOCK_SIZE_BYTES);
 
