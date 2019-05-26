@@ -19,7 +19,7 @@ int main(void) {
 	//http://testprotect.com/appendix/AEScalc
 	//test_DES_block_cipher_1();
 	//test_DES_f_function();
-	test_3DES_3TDEA();
+	//test_3DES_3TDEA();
 
 
 	/*uint8_t region_x[16];
@@ -42,7 +42,10 @@ int main(void) {
 	printf("GALOIS!\n");
 	galois_128_mult_lbe(region_x, region_y, region_z);
 	print_region(region_z);*/
-
+	test_AES_GCM_1();
+	test_GCM_MULT();
+	test_GCM_MULT_1();
+	test_GCM_MULT_2();
 	return EXIT_SUCCESS;
 
 }

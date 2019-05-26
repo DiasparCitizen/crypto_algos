@@ -15,6 +15,6 @@
 #include "../BlockCiphers/AES.h"
 #include "../Helper/helper.h"
 
-void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_BYTES], uint8_t iv[12], uint8_t *aad);
+void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_BYTES], uint8_t iv[12], uint8_t *aad, uint8_t *tag);
 
 #endif /* TEXTCIPHERS_TEXTCIPHERS_H_ */

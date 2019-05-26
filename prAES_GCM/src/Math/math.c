@@ -20,133 +20,77 @@ uint8_t reverse(uint8_t n) {
    return (lookup[n&0b1111] << 4) | lookup[n>>4];
 }
 
-// Detailed breakdown of the math
-//  + lookup reverse of bottom nibble
-//  |       + grab bottom nibble
-//  |       |        + move bottom result into top nibble
-//  |       |        |     + combine the bottom and top results
-//  |       |        |     | + lookup reverse of top nibble
-//  |       |        |     | |       + grab top nibble
-//  V       V        V     V V       V
-// (lookup[n&0b1111] << 4) | lookup[n>>4]
+void galois_128_mult(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z){
 
-
-
-
-void print_region(uint8_t *region){
-
-	printf("Region:\n");
-
-	for (uint8_t i = 0; i < BYTES_IN_128_BITS; i++){
-		printf("%02X ", region[i]);
+	if (0){
+		return galois_128_mult_lle_reverse(region_x, region_y, region_z);
+	}else{
+		return galois_128_mult_lle(region_x, region_y, region_z);
 	}
-	printf("\n");
 
 }
 
-
-
-/* Little-little endian implementation */
 void galois_128_mult_lle(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z){
 
-
 	// Declare vars
-	uint8_t i;
-	uint8_t j;
+	uint8_t byteIdx, bitIdx, i;
 	uint8_t region_v[BYTES_IN_128_BITS];
+	uint8_t mask = 0b11100001;
+	uint8_t was127set, was_bit_high, aux;
 
-	// Initialize
-	uint8_t was_bit_high = 0;
-	// Z <- 0
+	// Z <- 0, V <- X
 	memset(region_z, 0x0, BYTES_IN_128_BITS);
-	// V <- X
 	memcpy(region_v, region_x, BYTES_IN_128_BITS);
 
-	// |B0|B1|B2|..|Bn|
-	for (i = 0; i < BYTES_IN_128_BITS; i++){
+	for (byteIdx = 0; byteIdx < BYTES_IN_128_BITS; byteIdx++){
 
-		// |b0|b1|b2|..|b7|
-		for (j = BITS_PER_BYTE; j > 0; j--){
+		for (bitIdx = 0; bitIdx < 8; bitIdx++){
 
-			// If Yi = 1
-			if ( (region_y[i] >> (j-1)) & 0x1 ){
-
-				//printf("true when i == %d and j == %d\n", i, (j-1));
-
-				// Z <- Z Xor V
+			if ( (region_y[byteIdx] >> (7 - bitIdx)) & 0x1 ){
+				// Z = Z xor V
 				((uint64_t*)region_z)[0] ^= ((uint64_t*)region_v)[0];
 				((uint64_t*)region_z)[1] ^= ((uint64_t*)region_v)[1];
-
 			}
 
-			// If V127 = 1 --> BYTE 15 [b120, b121, ..., b127]
-			if ( region_v[15] & 0x01 ){
-				// Xor with R
-				region_v[0] |= 0b11100001; // 1 + x + x^2 + x^7
+			// Save bit 127, since it will be lost after the rightshift op
+			was127set = region_v[BYTES_IN_128_BITS - 1] & 0x1;
+
+			// rightshift(V) (Always done)
+			was_bit_high = region_v[0] & 0x1;
+			region_v[0] >>= 1;
+
+			for (i = 1; i < BYTES_IN_128_BITS; i++){
+				aux = region_v[i] & 0x1;
+				region_v[i] >>= 1;
+				if (was_bit_high) region_v[i] |= 0x80;
+				was_bit_high = aux;
 			}
 
-			// Before shifting, reverse bits in all bytes!
-			region_v[0] = _reverse(region_v[0]);
-			region_v[1] = _reverse(region_v[1]);
-			region_v[2] = _reverse(region_v[2]);
-			region_v[3] = _reverse(region_v[3]);
-			region_v[4] = _reverse(region_v[4]);
-			region_v[5] = _reverse(region_v[5]);
-			region_v[6] = _reverse(region_v[6]);
-			region_v[7] = _reverse(region_v[7]);
-			region_v[8] = _reverse(region_v[8]);
-			region_v[9] = _reverse(region_v[9]);
-			region_v[10] = _reverse(region_v[10]);
-			region_v[11] = _reverse(region_v[11]);
-			region_v[12] = _reverse(region_v[12]);
-			region_v[13] = _reverse(region_v[13]);
-			region_v[14] = _reverse(region_v[14]);
-			region_v[15] = _reverse(region_v[15]);
-
-			// Left shift V
-			was_bit_high = region_v[7] & 0x80; // --> BYTE 7 [b63, b62, ..., b56]
-			((uint64_t*)region_v)[0] = ((uint64_t*)region_v)[0] << 1;
-			((uint64_t*)region_v)[1] = ((uint64_t*)region_v)[1] << 1;
-			if ( was_bit_high )
-				region_v[8] |= 0x01; // --> BYTE 8 [b71, b70, ..., b64]
-
-			// Now, re-reverse bits in all bytes!
-			region_v[0] = _reverse(region_v[0]);
-			region_v[1] = _reverse(region_v[1]);
-			region_v[2] = _reverse(region_v[2]);
-			region_v[3] = _reverse(region_v[3]);
-			region_v[4] = _reverse(region_v[4]);
-			region_v[5] = _reverse(region_v[5]);
-			region_v[6] = _reverse(region_v[6]);
-			region_v[7] = _reverse(region_v[7]);
-			region_v[8] = _reverse(region_v[8]);
-			region_v[9] = _reverse(region_v[9]);
-			region_v[10] = _reverse(region_v[10]);
-			region_v[11] = _reverse(region_v[11]);
-			region_v[12] = _reverse(region_v[12]);
-			region_v[13] = _reverse(region_v[13]);
-			region_v[14] = _reverse(region_v[14]);
-			region_v[15] = _reverse(region_v[15]);
-
-
+			// If V.127 == 0, rightshift(V)
+			// If V.127 == 1, rightshift(V) xor R
+			if ( was127set ) region_v[0] ^= mask;
 
 		}
 
 	}
 
+	return;
 
 }
 
-
-
-
-void galois_128_mult_lbe(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z){
-
+void galois_128_mult_lle_reverse(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z){
 
 	// Declare vars
 	uint8_t i;
 	uint8_t j;
 	uint8_t region_v[BYTES_IN_128_BITS];
+	uint8_t mask = 0b10000111;
+
+	// Reverse input
+	for (i = 0; i < BYTES_IN_128_BITS; i++){
+		region_x[i] = _reverse(region_x[i]);
+		region_y[i] = _reverse(region_y[i]);
+	}
 
 	// Initialize
 	uint8_t was_bit_high = 0;
@@ -163,37 +107,38 @@ void galois_128_mult_lbe(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z
 
 			// If Yi = 1
 			if ( (region_y[i] >> j) & 0x1 ){
-
-				//printf("true when i == %d and j == %d\n", i, (j-1));
-
 				// Z <- Z Xor V
 				((uint64_t*)region_z)[0] ^= ((uint64_t*)region_v)[0];
 				((uint64_t*)region_z)[1] ^= ((uint64_t*)region_v)[1];
-
 			}
 
-			// If V127 = 1 --> BYTE 15 [b120, b121, ..., b127]
-			if ( region_v[15] & 0x01 ){
-				// Xor with R
-				region_v[0] |= 0b10000111; // 1 + x + x^2 + x^7
-			}
+			uint8_t was127set = region_v[15] & 0x80;
 
-			// Left shift V
+			// Left shift V (alawys done)
 			was_bit_high = region_v[7] & 0x80; // --> BYTE 7 [b63, b62, ..., b56]
 			((uint64_t*)region_v)[0] = ((uint64_t*)region_v)[0] << 1;
 			((uint64_t*)region_v)[1] = ((uint64_t*)region_v)[1] << 1;
 			if ( was_bit_high )
 				region_v[8] |= 0x01; // --> BYTE 8 [b71, b70, ..., b64]
 
-
+			// If V127 = 1 --> BYTE 15 [b120, b121, ..., b127]
+			if ( was127set ){
+				// Xor with R
+				region_v[0] ^= mask; // 1 + x + x^2 + x^7
+			}
 
 		}
 
 	}
 
+	// Re-reverse
+	for (i = 0; i < BYTES_IN_128_BITS; i++){
+		region_x[i] = _reverse(region_x[i]);
+		region_y[i] = _reverse(region_y[i]);
+		region_z[i] = _reverse(region_z[i]);
+	}
 
 }
-
 
 uint32_t _bswap32(uint32_t a){
 
@@ -242,5 +187,3 @@ uint8_t flip_byte(uint8_t b){
 	return b;
 
 }
-
-

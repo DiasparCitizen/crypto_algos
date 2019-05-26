@@ -11,8 +11,9 @@
 #define OOOOIIII 0xF
 #define OOIIIIII 0x3F
 
+void galois_128_mult(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z);
+void galois_128_mult_lle_reverse(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z);
 void galois_128_mult_lle(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z);
-void galois_128_mult_lbe(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z);
 void print_region(uint8_t *region);
 
 uint32_t _bswap32(uint32_t a);
