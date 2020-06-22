@@ -5,6 +5,7 @@
 #define BYTES_IN_128_BITS (128 / BITS_PER_BYTE)
 #define LEFT_MOST_BYTE (BYTES_IN_128_BITS - 1)
 
+// Macros
 
 #define _reverse(n) (lookup[n&0b1111] << 4) | lookup[n>>4]
 
@@ -30,13 +31,15 @@ void galois_128_mult(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z){
 
 }
 
+// galois_128_mult_lle(g_sub_i, H, aux);
 void galois_128_mult_lle(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z){
 
 	// Declare vars
 	uint8_t byteIdx, bitIdx, i;
 	uint8_t region_v[BYTES_IN_128_BITS];
-	uint8_t mask = 0b11100001;
 	uint8_t was127set, was_bit_high, aux;
+
+#define R_MASK 0b11100001
 
 	// Z <- 0, V <- X
 	memset(region_z, 0x0, BYTES_IN_128_BITS);
@@ -68,23 +71,27 @@ void galois_128_mult_lle(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z
 
 			// If V.127 == 0, rightshift(V)
 			// If V.127 == 1, rightshift(V) xor R
-			if ( was127set ) region_v[0] ^= mask;
+			if ( was127set ) region_v[0] ^= R_MASK;
 
 		}
 
 	}
 
+#undef R_MASK
+
 	return;
 
 }
 
+// galois_128_mult(g_sub_i, H, aux);
 void galois_128_mult_lle_reverse(uint8_t *region_x, uint8_t *region_y, uint8_t *region_z){
 
 	// Declare vars
 	uint8_t i;
 	uint8_t j;
 	uint8_t region_v[BYTES_IN_128_BITS];
-	uint8_t mask = 0b10000111;
+
+#define R_MASK 0b10000111;
 
 	// Reverse input
 	for (i = 0; i < BYTES_IN_128_BITS; i++){
@@ -124,7 +131,7 @@ void galois_128_mult_lle_reverse(uint8_t *region_x, uint8_t *region_y, uint8_t *
 			// If V127 = 1 --> BYTE 15 [b120, b121, ..., b127]
 			if ( was127set ){
 				// Xor with R
-				region_v[0] ^= mask; // 1 + x + x^2 + x^7
+				region_v[0] ^= R_MASK; // 1 + x + x^2 + x^7
 			}
 
 		}
@@ -138,6 +145,31 @@ void galois_128_mult_lle_reverse(uint8_t *region_x, uint8_t *region_y, uint8_t *
 		region_z[i] = _reverse(region_z[i]);
 	}
 
+#undef R_MASK
+
+}
+
+uint32_t ipow(uint32_t base, uint32_t exp){
+	uint32_t result = 1;
+    for (;;)
+    {
+        if (exp & 1)
+            result *= base;
+        exp >>= 1;
+        if (!exp)
+            break;
+        base *= base;
+    }
+
+    return result;
+}
+
+uint64_t _bswap64(uint64_t val){
+
+    val = ((val << 8) & 0xFF00FF00FF00FF00ULL) | ((val >> 8) & 0x00FF00FF00FF00FFULL);
+    val = ((val << 16) & 0xFFFF0000FFFF0000ULL) | ((val >> 16) & 0x0000FFFF0000FFFFULL);
+    return (val << 32) | ((val >> 32) & 0xFFFFFFFFULL);
+
 }
 
 uint32_t _bswap32(uint32_t a){
@@ -150,6 +182,17 @@ uint32_t _bswap32(uint32_t a){
 
 }
 
+void reverseBytes(void *start, int size){
+    unsigned char *lo = start;
+    unsigned char *hi = start + size - 1;
+    unsigned char swap;
+    while (lo < hi) {
+        swap = *lo;
+        *lo++ = *hi;
+        *hi-- = swap;
+    }
+}
+
 void xor(uint8_t *block, uint8_t *block2){
 
 	((uint32_t*)block)[0] ^= ((uint32_t*)block2)[0];
@@ -157,6 +200,12 @@ void xor(uint8_t *block, uint8_t *block2){
 	((uint32_t*)block)[2] ^= ((uint32_t*)block2)[2];
 	((uint32_t*)block)[3] ^= ((uint32_t*)block2)[3];
 
+}
+
+void xor_bytes(uint8_t *block, uint8_t *block2, uint16_t byte_len){
+	for (uint16_t i = 0; i < byte_len; i++){
+		block[i] ^= block2[i];
+	}
 }
 
 void flip_bytes(uint8_t *bytes, uint8_t len){
@@ -186,4 +235,10 @@ uint8_t flip_byte(uint8_t b){
 	b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
 	return b;
 
+}
+
+uint16_t rotl16(uint16_t x, unsigned int n){
+  const unsigned int mask = (8*sizeof(x)-1);
+  n &= mask;  // avoid undef behaviour with NDEBUG.  0 overhead for most types / compilers
+  return (x<<n) | (x>>( (-n)&mask ));
 }

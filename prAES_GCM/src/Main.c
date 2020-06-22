@@ -42,10 +42,16 @@ int main(void) {
 	printf("GALOIS!\n");
 	galois_128_mult_lbe(region_x, region_y, region_z);
 	print_region(region_z);*/
-	test_AES_GCM_1();
+	/*test_AES_GCM_1();
 	test_GCM_MULT();
 	test_GCM_MULT_1();
 	test_GCM_MULT_2();
+	test_electronic_code_book_ECB();
+	test_cipher_block_chaining_CBC();
+	test_output_feedback_OFB();
+
+	test_counter_mode_CTR();*/
+	random_test();
 	return EXIT_SUCCESS;
 
 }

@@ -1,7 +1,6 @@
 
 #include "textciphers.h"
 
-
 void increase_counter(uint8_t *counter){
 
 	uint32_t copy = _bswap32( ((uint32_t*)counter)[3] ) + 1;
@@ -10,7 +9,13 @@ void increase_counter(uint8_t *counter){
 }
 
 
-void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_BYTES], uint8_t iv[12], uint8_t *aad, uint8_t *tag){
+void encrypt_data_AES_GCM(uint8_t *data,
+						uint16_t data_byte_len,
+						uint8_t key[BLOCK_SIZE_BYTES],
+						uint8_t iv[12],
+						uint8_t *aad,
+						uint16_t aad_byte_len,
+						uint8_t *tag){
 
 	// Declare vars
 	uint8_t encryption_input[BLOCK_SIZE_BYTES];
@@ -42,12 +47,14 @@ void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_B
 	//printf("g sub 0:\n");
 	//print_array_pretty(g_sub_i, 16);
 
-	// Initialize len(A)||len(C)
-	uint8_t lenA_lenC[BLOCK_SIZE_BYTES] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00};
+	// Initialize len(A)||len(C). Lengths are expressed in bits!
+	uint8_t lenA_lenC[BLOCK_SIZE_BYTES];
+	((uint64_t*)lenA_lenC)[0] = _bswap64((uint64_t)aad_byte_len * 8);
+	((uint64_t*)lenA_lenC)[1] = _bswap64((uint64_t)data_byte_len * 8);
 
 	// BEGIN ENCRYPTION
 
-	for (int b_index = 0; b_index < data_size; b_index += BLOCK_SIZE_BYTES){
+	for (int b_index = 0; b_index < data_byte_len; b_index += BLOCK_SIZE_BYTES){
 
 		//printf("***********************\nEncrypt block #%d\n", (b_index/BLOCK_SIZE_BYTES));
 
@@ -91,3 +98,138 @@ void encrypt_data_AES_GCM(uint8_t *data, int data_size, uint8_t key[BLOCK_SIZE_B
 	memcpy(tag, aux, BLOCK_SIZE_BYTES);
 
 }
+
+void encrypt_ECB(uint8_t *input_data,
+				uint32_t data_byte_len,
+				uint8_t *output_data,
+				uint8_t *key,
+				uint16_t key_byte_len,
+				void (*block_cipher)(),
+				uint16_t block_byte_len){
+
+	// It's not ideal, but we can do this temporarily
+	memcpy(output_data, input_data, data_byte_len);
+
+	for (uint32_t b_index = 0; b_index < data_byte_len; b_index += block_byte_len){
+		block_cipher(&(output_data[b_index]), key);
+	}
+
+}
+
+void encrypt_CBC(uint8_t *input_data,
+				uint32_t data_byte_len,
+				uint8_t *output_data,
+				uint8_t *key,
+				uint16_t key_byte_len,
+				uint8_t *iv,
+				uint16_t iv_byte_len,
+				void (*block_cipher)(),
+				uint16_t block_byte_len){
+
+
+	// It's not ideal, but we can do this temporarily
+	memcpy(output_data, input_data, data_byte_len);
+
+	for (uint32_t b_index = 0; b_index < data_byte_len; b_index += block_byte_len){
+
+		if (b_index == 0){
+			// First it: xor with IV
+			// IV should be the size of the block
+			xor_bytes(output_data, iv, block_byte_len);
+		}else{
+			//            Still plaintext    XOR        encrypted block in last iter
+			xor_bytes(&(output_data[b_index]), &(output_data[b_index - block_byte_len]), block_byte_len);
+		}
+
+		block_cipher(&(output_data[b_index]), key);
+
+	}
+
+}
+
+void encrypt_CTR(uint8_t *input_data,
+				uint32_t data_byte_len,
+				uint8_t *output_data,
+				uint8_t *key,
+				uint16_t key_byte_len,
+				uint8_t *iv,
+				uint16_t iv_byte_len,
+				uint16_t ctr_byte_len,
+				void (*block_cipher)(),
+				uint16_t block_byte_len){
+
+	// It's not ideal, but we can do this temporarily
+	memcpy(output_data, input_data, data_byte_len);
+
+	uint8_t ctr[block_byte_len];
+	uint8_t input[block_byte_len];
+	memset(ctr, 0x0, block_byte_len);
+
+	// Calculate some params
+	uint32_t max_ctr_value = ipow(2, ctr_byte_len*8);
+	uint32_t counter = 0x0;
+	uint32_t counter_cpy;
+
+	// Copy nonce
+	memcpy(ctr, iv, iv_byte_len);
+
+	// Initialize counter
+	memcpy(&counter, (ctr + iv_byte_len - ctr_byte_len), ctr_byte_len);
+	reverseBytes(&counter, ctr_byte_len);
+	//printf("counter: %04x\n", counter);
+	//print_array_pretty(ctr, 16);
+
+
+	for (uint32_t b_index = 0; b_index < data_byte_len; b_index += block_byte_len){
+
+		memcpy(input, ctr, block_byte_len);
+		//printf("input:\n");
+		//print_array_pretty(ctr, 16);
+
+		block_cipher(input, key);
+		//printf("output:\n");
+		//print_array_pretty(input, 16);
+
+		xor_bytes(&(output_data[b_index]), input, block_byte_len);
+
+		counter = (counter + 1) % max_ctr_value;
+		counter_cpy = counter;
+		reverseBytes(&counter_cpy, ctr_byte_len);
+		memcpy((ctr + iv_byte_len - ctr_byte_len), &counter_cpy, ctr_byte_len);
+
+
+	}
+
+}
+
+void encrypt_OFB(uint8_t *input_data,
+				uint32_t data_byte_len,
+				uint8_t *output_data,
+				uint8_t *key,
+				uint16_t key_byte_len,
+				uint8_t *iv,
+				uint16_t iv_byte_len,
+				void (*block_cipher)(),
+				uint16_t block_byte_len){
+
+	// It's not ideal, but we can do this temporarily
+	memcpy(output_data, input_data, data_byte_len);
+
+	uint8_t aux[block_byte_len];
+	memcpy(aux, iv, block_byte_len);
+
+	for (uint32_t b_index = 0; b_index < data_byte_len; b_index += block_byte_len){
+
+		if (b_index == 0){
+			// Encrypt IV
+			block_cipher(aux, key);
+			xor_bytes(&(output_data[b_index]), aux, block_byte_len);
+		}else{
+			block_cipher(aux, key);
+			xor_bytes(&(output_data[b_index]), aux, block_byte_len);
+		}
+
+	}
+
+}
+
